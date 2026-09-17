@@ -88,35 +88,6 @@ app/
 - La **inyección de dependencias** (`core/dependencies.py`) ensambla estas
   piezas en tiempo de request vía `Depends` de FastAPI.
 
-## Comparación con la versión hexagonal
-
-| | `MensajesNequi` (este proyecto) | Versión hexagonal (`NequiBot-Assessment-Backend`) |
-|---|---|---|
-| Organización | Por **capa técnica**: un `services/`, un `repositories/` para todo | Por **caso de uso**: cada slice en `features/` es autocontenido |
-| Archivos para 3 endpoints | ~20 archivos de app | ~50 archivos de app (4 slices, `shared_kernel`, `bootstrap`) |
-| Acceso a datos | 1 `MessageRepository` con todos los métodos | 1 puerto (`Protocol`) angosto por caso de uso + 1 adaptador |
-| Cambiar de motor de BD | Tocar `message_repository.py` (un archivo, conocido) | No tocar `application/`; sí tocar 1 adaptador nuevo por puerto |
-| WebSocket en tiempo real | `MessageService` importa `MessageBroadcaster` directamente | 2 puertos (`MessageNotifierPort`/`MessageSubscriptionPort`) + 2 adaptadores + 1 slice nuevo |
-| Agregar un error nuevo (ej. `InvalidApiKeyError`) | Solo definir la subclase de `AppError` con su `status_code` — el manejador genérico ya sabe leerlo | Definir la subclase de `DomainError` (sin `status_code`, a propósito) + registrar el status code aparte en una tabla de `bootstrap/` |
-| Curva de entrada | Baja — se entiende en un vistazo | Media — hay que entender puertos/adaptadores/slices primero |
-| Qué pide el PDF | Exactamente esto | Más de lo pedido |
-
-**¿Por qué existe este proyecto entonces?** Porque para el alcance real del
-reto (3 endpoints, un solo motor de datos, un desarrollador) **esta es la
-arquitectura correcta** — cumple el enunciado al pie de la letra, es más
-fácil de revisar por un evaluador, y no paga el costo de abstracciones que
-nadie va a usar. La versión hexagonal se justifica cuando aparece una
-necesidad *real* (no especulativa) de aislar casos de uso entre sí, o de
-soportar más de un adaptador concreto por puerto — cosas que en ese reto se
-simularon a propósito (Postgres, DynamoDB) para demostrar el patrón, no
-porque el problema las pidiera.
-
-**La heurística para decidir en el futuro:** no pagues el costo de puertos y
-slices hasta tener una *segunda implementación real* de un adaptador, o un
-*segundo equipo* trabajando en paralelo sobre casos de uso distintos. Antes
-de eso, tres capas simples — como este proyecto — es la opción que un tech
-lead evaluando "calidad de código" esperaría ver.
-
 ## Stack tecnológico
 
 - Python 3.10+ (probado con 3.12)
