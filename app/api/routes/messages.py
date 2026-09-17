@@ -9,7 +9,7 @@ from app.core.dependencies import get_message_service
 from app.schemas.message import MessageCreate, SenderType
 from app.services.message_service import MessageService
 
-router = APIRouter(prefix="/api/messages", tags=["messages"])
+router = APIRouter(prefix="/api/v1/messages", tags=["messages"])
 
 
 def _success(data, status_code: int = status.HTTP_200_OK) -> JSONResponse:
