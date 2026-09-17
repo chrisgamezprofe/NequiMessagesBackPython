@@ -1,7 +1,7 @@
 """Controladores HTTP (capa de presentación): parsean la request, delegan en
 `MessageService` y envuelven la respuesta en `{"status", "data"}` acordado.
 No contiene lógica de negocio."""
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
@@ -35,7 +35,12 @@ async def create_message(
     summary="Busca mensajes cuyo contenido incluya el texto dado",
 )
 def search_messages(
-    q: str = Query(..., min_length=1, description="Texto a buscar dentro del contenido del mensaje"),
+    q: str = Query(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Texto a buscar dentro del contenido del mensaje",
+    ),
     limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de resultados"),
     offset: int = Query(0, ge=0, description="Cantidad de resultados a omitir"),
     service: MessageService = Depends(get_message_service),
@@ -49,7 +54,7 @@ def search_messages(
     summary="Lista los mensajes de una sesión, con paginación y filtro por remitente",
 )
 def get_messages_by_session(
-    session_id: str,
+    session_id: str = Path(..., min_length=1, max_length=100),
     limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de resultados"),
     offset: int = Query(0, ge=0, description="Cantidad de resultados a omitir"),
     sender: SenderType | None = Query(None, description="Filtrar por remitente: 'user' o 'system'"),

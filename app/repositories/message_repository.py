@@ -52,8 +52,15 @@ class MessageRepository:
         # moderación encuentre los mensajes que SÍ tuvieron contenido filtrado. La
         # respuesta que se devuelve sigue mostrando `content` censurado igual que
         # siempre: esto solo cambia qué texto se usa para decidir si hay match.
-        pattern = f"%{query}%"
-        stmt = select(MessageModel).where(MessageModel.original_content.ilike(pattern))
+        #
+        # `query` la escribe quien llama a la API, así que `%` y `_` (los
+        # caracteres especiales de `LIKE`) se escapan antes de envolverla entre
+        # `%...%`: si no se escaparan, buscar `q=%` haría match con *cualquier*
+        # mensaje (fuga de todo el contenido a través de "buscar"), y `_` haría
+        # match con cualquier carácter en esa posición.
+        escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_query}%"
+        stmt = select(MessageModel).where(MessageModel.original_content.ilike(pattern, escape="\\"))
 
         total = self._db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
 

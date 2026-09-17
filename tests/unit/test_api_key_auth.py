@@ -15,6 +15,14 @@ def test_is_valid_api_key_requires_exact_match_when_enabled():
     assert is_valid_api_key(provided=None, expected_key="secret") is False
 
 
+def test_is_valid_api_key_rejects_value_of_different_length():
+    """La comparación usa `hmac.compare_digest` (tiempo constante) en vez de
+    `==`, precisamente para que esto siga siendo correcto sin filtrar cuántos
+    caracteres iniciales acertó quien la mandó."""
+    assert is_valid_api_key(provided="sec", expected_key="secret") is False
+    assert is_valid_api_key(provided="secret-mucho-mas-largo", expected_key="secret") is False
+
+
 def test_require_api_key_dependency_allows_request_when_disabled():
     dependency = build_api_key_dependency(expected_key=None)
 

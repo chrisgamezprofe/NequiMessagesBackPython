@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
 
+    # Tope de tamaño del body de una request, en bytes. 51200 (50 KiB) da
+    # margen de sobra sobre el mensaje más grande válido (content de 5000
+    # caracteres, hasta 4 bytes cada uno en UTF-8, más el resto de campos).
+    max_body_bytes: int = 51200
+
     # Autenticación básica por API key:
     # mientras no se configure. Activarla con la variable de entorno API_KEY.
     api_key: str | None = None

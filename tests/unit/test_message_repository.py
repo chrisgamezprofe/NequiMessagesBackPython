@@ -124,6 +124,30 @@ def test_search_is_case_insensitive(repository: MessageRepository):
     assert records[0].message_id == "msg-1"
 
 
+def test_search_treats_percent_and_underscore_as_literal_characters(repository: MessageRepository):
+    """`%` y `_` son caracteres especiales de `LIKE` (comodines de SQL). Si no
+    se escapan, buscar `q="%"` haría match con *cualquier* mensaje —una fuga
+    de todo el contenido a través del buscador—, y `q="_"` con cualquier
+    mensaje de un solo carácter. Deben tratarse como texto literal."""
+    _create(repository, message_id="msg-1", content="descuento del 10% aplicado")
+    _create(repository, message_id="msg-2", content="mensaje normal sin comodines")
+
+    records, total = repository.search("%", limit=20, offset=0)
+
+    assert total == 1
+    assert records[0].message_id == "msg-1"
+
+
+def test_search_treats_underscore_as_literal_character(repository: MessageRepository):
+    _create(repository, message_id="msg-1", content="usa guion_bajo aqui")
+    _create(repository, message_id="msg-2", content="mensaje normal sin comodines")
+
+    records, total = repository.search("_", limit=20, offset=0)
+
+    assert total == 1
+    assert records[0].message_id == "msg-1"
+
+
 def test_search_finds_messages_by_a_censored_word(repository: MessageRepository):
     """La palabra prohibida ya no existe en `content` (quedó reemplazada por
     asteriscos), así que buscarla solo tiene sentido si se busca sobre

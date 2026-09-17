@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.routes.messages import router as messages_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.api_key_auth import build_api_key_dependency
+from app.core.body_size_limit import BodySizeLimitMiddleware
 from app.core.broadcaster import MessageBroadcaster
 from app.core.config import get_settings
 from app.core.database import Database, get_db
@@ -28,6 +29,7 @@ def create_app(
     rate_limit_requests: int | None = None,
     rate_limit_window_seconds: int | None = None,
     api_key: str | None = None,
+    max_body_bytes: int | None = None,
 ) -> FastAPI:
     settings = get_settings()
     database = Database(database_url or settings.database_url)
@@ -64,6 +66,14 @@ def create_app(
         RateLimitMiddleware,
         max_requests=rate_limit_requests or settings.rate_limit_requests,
         window_seconds=rate_limit_window_seconds or settings.rate_limit_window_seconds,
+    )
+    # Se agrega después del rate limit para que corra antes en la cadena de
+    # middlewares (Starlette los ejecuta en orden inverso al de registro):
+    # así un body demasiado grande se rechaza sin siquiera contar contra el
+    # límite de solicitudes del cliente.
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_body_bytes=max_body_bytes or settings.max_body_bytes,
     )
 
     require_api_key = Depends(build_api_key_dependency(effective_api_key))

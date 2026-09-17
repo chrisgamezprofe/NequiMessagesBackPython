@@ -16,6 +16,7 @@ apropiado, seguir principios SOLID"*.
 - [Configuración e instalación](#configuración-e-instalación)
 - [Ejecución](#ejecución)
 - [Documentación de la API](#documentación-de-la-api)
+- [Seguridad adicional en inputs](#seguridad-adicional-en-inputs)
 - [Pruebas](#pruebas)
 - [Docker / Podman](#docker--podman)
 - [Propuesta de infraestructura en AWS (IaC)](#propuesta-de-infraestructura-en-aws-iac)
@@ -245,6 +246,7 @@ en `content` y `metadata.contains_filtered_content` queda en `true`.
 | 422         | `INVALID_FORMAT`         | Campo faltante, tipo inválido, `sender` inválido, etc. |
 | 401         | `INVALID_API_KEY`        | Falta el header `X-API-Key` o es incorrecto (solo si `API_KEY` está configurado) |
 | 409         | `DUPLICATE_MESSAGE_ID`   | Ya existe un mensaje con ese `message_id`      |
+| 413         | `PAYLOAD_TOO_LARGE`      | El body de la request supera el tamaño máximo permitido (ver [Seguridad adicional en inputs](#seguridad-adicional-en-inputs)) |
 | 429         | `RATE_LIMIT_EXCEEDED`    | Se superó el límite de solicitudes             |
 | 500         | `INTERNAL_SERVER_ERROR`  | Error inesperado del servidor                  |
 
@@ -252,6 +254,7 @@ en `content` y `metadata.contains_filtered_content` queda en `true`.
 
 | Parámetro | Tipo   | Default | Notas                          |
 |-----------|--------|---------|----------------------------------|
+| session_id (path) | string | — | 1-100 caracteres                |
 | limit     | int    | 20      | 1-100                            |
 | offset    | int    | 0       | ≥ 0                               |
 | sender    | string | (todos) | `"user"` o `"system"`            |
@@ -265,14 +268,18 @@ Si la sesión no existe, devuelve `200` con una lista vacía.
 
 ### `GET /api/v1/messages/search` (punto extra)
 
-Busca mensajes cuyo texto contenga lo dado (`q`), sin distinguir
-mayúsculas/minúsculas. Acepta `limit`/`offset`.
+Busca mensajes cuyo texto contenga lo dado (`q`, 1-200 caracteres), sin
+distinguir mayúsculas/minúsculas. Acepta `limit`/`offset`.
 
 Busca sobre `original_content` (el texto real), no sobre `content` (la
 versión censurada): si buscara sobre `content`, una palabra prohibida jamás
 podría encontrarse, porque ya no existe ahí. La respuesta sigue devolviendo
 `content` censurado como siempre — buscar por la palabra prohibida no la
 "destapa" en el resultado.
+
+`q` se trata siempre como texto literal, aunque contenga `%` o `_` (los
+comodines de `LIKE` en SQL) — ver
+[Seguridad adicional en inputs](#seguridad-adicional-en-inputs).
 
 ### `WS /ws/messages/{session_id}` (punto extra)
 
@@ -306,6 +313,51 @@ adaptadores de por medio, a diferencia de la versión hexagonal. Ver
 ### `GET /health`
 
 Chequeo de salud simple.
+
+## Seguridad adicional en inputs
+
+Más allá de la validación de formato de Pydantic, se agregaron protecciones
+puntuales contra abusos concretos que no son teóricos — cada una responde a
+algo que sí puede pasar con este código y este despliegue (ECS detrás de un
+ALB, ver [Propuesta de infraestructura en AWS](#propuesta-de-infraestructura-en-aws-iac)):
+
+- **Comparación de API key en tiempo constante** (`app/core/api_key_auth.py`).
+  `hmac.compare_digest` en vez de `==`: con `==`, Python deja de comparar en
+  el primer carácter distinto, así que el tiempo de respuesta varía según
+  cuántos caracteres iniciales acierte quien ataca (*timing attack*) — con
+  suficientes intentos medidos, eso permite reconstruir la key carácter a
+  carácter.
+- **Comodines de `LIKE` escapados en la búsqueda** (`app/repositories/message_repository.py`,
+  método `search`). `q` se envuelve en `%...%` para el `ILIKE` de SQL, pero
+  `%` y `_` ya son comodines de SQL: sin escaparlos, `GET /api/v1/messages/search?q=%25`
+  (`%` sin escapar en la URL) haría match con *todos* los mensajes —una fuga
+  del contenido completo a través del buscador— y `q=_` con cualquier mensaje
+  de un solo carácter. Ahora se tratan siempre como texto literal.
+- **Límites de tamaño en `session_id` (path) y `q` (búsqueda)**. `session_id`
+  ya se limitaba a 100 caracteres al crear un mensaje
+  (`MessageCreate.session_id`), pero el path param de
+  `GET /api/v1/messages/{session_id}` no tenía el mismo tope; `q` tampoco
+  tenía límite superior. Ambos ahora rechazan con `422` un valor
+  desproporcionadamente largo, antes de llegar a la base de datos.
+- **Límite de tamaño del body** (`app/core/body_size_limit.py`,
+  `BodySizeLimitMiddleware`). Sin esto, un body de varios MB se lee completo
+  en memoria aunque `MessageCreate.content` (máx. 5000 caracteres) lo termine
+  rechazando de todas formas — la validación de Pydantic corre después de que
+  Starlette ya cargó el body entero. El middleware corta por `Content-Length`
+  antes de eso (`413 PAYLOAD_TOO_LARGE`, tope configurable vía
+  `Settings.max_body_bytes`, 50 KiB por defecto).
+- **Rate limiting resistente al proxy de la infraestructura propuesta**
+  (`app/core/rate_limit.py`). Detrás de un Application Load Balancer (el de
+  `infra/`), `request.client.host` deja de identificar al cliente real: a la
+  app le llega la IP interna del ALB, así que todo el tráfico externo se
+  agruparía en un solo balde. Ahora se usa el último valor de
+  `X-Forwarded-For` (el que el ALB —el único proxy de confianza delante de la
+  app— añade él mismo al final, sin importar qué valor propio haya mandado el
+  cliente).
+
+Cada punto tiene su prueba dedicada en `tests/unit/` (`test_api_key_auth.py`,
+`test_message_repository.py`, `test_rate_limit.py`) y `tests/integration/`
+(`test_messages_api.py`).
 
 ## Pruebas
 

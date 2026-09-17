@@ -16,8 +16,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._window_seconds = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
+    @staticmethod
+    def _client_id(request: Request) -> str:
+        """`request.client.host` deja de servir para identificar al cliente
+        real detrás de un proxy de confianza (el ALB de la propuesta de IaC en
+        `infra/`): ahí, todo el tráfico le llega a Fargate desde la IP interna
+        del load balancer, así que sin esto el rate limit agruparía a todos
+        los usuarios reales en un solo balde.
+
+        Se usa el ÚLTIMO valor de `X-Forwarded-For` en vez del primero: un
+        cliente puede mandar su propio header falsificado, pero el ALB
+        (el único proxy delante de la app en esta arquitectura) siempre
+        *añade* la IP real de la conexión que le llegó al final de la lista —
+        es el único valor de ese header en el que se puede confiar con un solo
+        proxy intermedio.
+        """
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[-1].strip()
+        return request.client.host if request.client else "unknown"
+
     async def dispatch(self, request: Request, call_next) -> Response:
-        client_id = request.client.host if request.client else "unknown"
+        client_id = self._client_id(request)
         now = time.monotonic()
         window_start = now - self._window_seconds
 

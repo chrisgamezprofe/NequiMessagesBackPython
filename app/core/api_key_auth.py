@@ -6,6 +6,7 @@ pasando `api_key=...` a `create_app` (usado por los tests).
 Vive en `core/` porque autenticar peticiones no es una regla de negocio del dominio de mensajes:
 es un detalle transversal de cómo se expone la API, igual que el rate limiting.
 """
+import hmac
 from collections.abc import Callable
 
 from fastapi import Header
@@ -15,10 +16,19 @@ from app.core.exceptions import InvalidApiKeyError
 
 def is_valid_api_key(provided: str | None, expected_key: str | None) -> bool:
     """`expected_key is None` significa "autenticación deshabilitada": todo es
-    válido. Si hay una key configurada, debe coincidir exactamente."""
+    válido. Si hay una key configurada, debe coincidir exactamente.
+
+    La comparación usa `hmac.compare_digest` (tiempo constante) en vez de `==`:
+    con `==`, Python deja de comparar en el primer carácter distinto, así que el
+    tiempo de respuesta varía según cuántos caracteres iniciales acierte el
+    atacante — una key de longitud correcta se puede ir reconstruyendo
+    carácter a carácter midiendo esas diferencias de tiempo (timing attack).
+    """
     if expected_key is None:
         return True
-    return provided == expected_key
+    if provided is None:
+        return False
+    return hmac.compare_digest(provided, expected_key)
 
 
 def build_api_key_dependency(expected_key: str | None) -> Callable[..., None]:

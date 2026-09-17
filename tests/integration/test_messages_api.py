@@ -216,6 +216,44 @@ def test_search_messages_finds_by_a_word_that_was_censored(client: TestClient):
     assert found["original_content"] == "eso fue una idiota decision"
 
 
+def test_get_messages_by_session_rejects_oversized_session_id(client: TestClient):
+    response = client.get(f"/api/v1/messages/{'s' * 101}")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_FORMAT"
+
+
+def test_search_messages_rejects_oversized_query(client: TestClient):
+    response = client.get("/api/v1/messages/search", params={"q": "a" * 201})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_FORMAT"
+
+
+def test_search_messages_treats_percent_as_literal_character(client: TestClient):
+    """Igual que en `tests/unit/test_message_repository.py`, pero de punta a
+    punta vía HTTP: `q="%"` no debe hacer match con todos los mensajes."""
+    client.post("/api/v1/messages", json=_payload(message_id="m1", content="descuento del 10% aplicado"))
+    client.post("/api/v1/messages", json=_payload(message_id="m2", content="mensaje normal"))
+
+    response = client.get("/api/v1/messages/search", params={"q": "%"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["pagination"]["total"] == 1
+    assert body["data"]["messages"][0]["message_id"] == "m1"
+
+
+def test_create_message_rejects_oversized_payload(tmp_path):
+    db_url = f"sqlite:///{tmp_path / 'body-size-test.db'}"
+    app = create_app(database_url=db_url, max_body_bytes=100)
+    with TestClient(app) as client:
+        response = client.post("/api/v1/messages", json=_payload(content="x" * 1000))
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
 def test_rate_limit_returns_429_after_exceeding_window(tmp_path):
     db_url = f"sqlite:///{tmp_path / 'rate-limit-test.db'}"
     app = create_app(database_url=db_url, rate_limit_requests=2, rate_limit_window_seconds=60)
