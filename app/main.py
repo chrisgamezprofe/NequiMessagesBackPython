@@ -1,5 +1,5 @@
-"""Punto de entrada de la aplicación: construye el `FastAPI` app (factory), registra
-middlewares, routers y manejadores de errores globales.
+"""Punto de entrada de la aplicación: construye el `FastAPI`, registra
+middlewares, routers y errores globales.
 
 `create_app` acepta parámetros opcionales (`database_url`, límites de rate limiting)
 para que los tests puedan levantar instancias completamente aisladas entre sí, sin
