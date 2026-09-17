@@ -27,7 +27,7 @@ def _client_with_auth(tmp_path, api_key: str = "secret-key") -> TestClient:
 
 def test_requests_without_api_key_are_rejected_when_configured(tmp_path):
     with _client_with_auth(tmp_path) as client:
-        response = client.post("/api/messages", json=_payload())
+        response = client.post("/api/v1/messages", json=_payload())
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "INVALID_API_KEY"
@@ -36,7 +36,7 @@ def test_requests_without_api_key_are_rejected_when_configured(tmp_path):
 def test_requests_with_wrong_api_key_are_rejected(tmp_path):
     with _client_with_auth(tmp_path) as client:
         response = client.post(
-            "/api/messages", json=_payload(), headers={"X-API-Key": "wrong-key"}
+            "/api/v1/messages", json=_payload(), headers={"X-API-Key": "wrong-key"}
         )
 
     assert response.status_code == 401
@@ -45,7 +45,7 @@ def test_requests_with_wrong_api_key_are_rejected(tmp_path):
 def test_requests_with_correct_api_key_are_accepted(tmp_path):
     with _client_with_auth(tmp_path) as client:
         response = client.post(
-            "/api/messages", json=_payload(), headers={"X-API-Key": "secret-key"}
+            "/api/v1/messages", json=_payload(), headers={"X-API-Key": "secret-key"}
         )
 
     assert response.status_code == 201
@@ -53,8 +53,8 @@ def test_requests_with_correct_api_key_are_accepted(tmp_path):
 
 def test_get_and_search_endpoints_also_require_api_key(tmp_path):
     with _client_with_auth(tmp_path) as client:
-        get_response = client.get("/api/messages/session-1")
-        search_response = client.get("/api/messages/search", params={"q": "hola"})
+        get_response = client.get("/api/v1/messages/session-1")
+        search_response = client.get("/api/v1/messages/search", params={"q": "hola"})
 
     assert get_response.status_code == 401
     assert search_response.status_code == 401
@@ -68,6 +68,6 @@ def test_health_check_does_not_require_api_key(tmp_path):
 
 
 def test_auth_disabled_by_default(client: TestClient):
-    response = client.post("/api/messages", json=_payload())
+    response = client.post("/api/v1/messages", json=_payload())
 
     assert response.status_code == 201
