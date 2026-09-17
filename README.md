@@ -25,12 +25,12 @@ apropiado, seguir principios SOLID"*.
 
 El servicio expone:
 
-1. **`POST /api/messages`**: valida el formato del mensaje, filtra contenido
+1. **`POST /api/v1/messages`**: valida el formato del mensaje, filtra contenido
    inapropiado (censura simple por lista de palabras) y calcula metadatos
    (`word_count`, `character_count`, `processed_at`) antes de almacenarlo.
-2. **`GET /api/messages/{session_id}`**: mensajes de una sesión, con
+2. **`GET /api/v1/messages/{session_id}`**: mensajes de una sesión, con
    paginación (`limit`/`offset`) y filtro opcional por remitente (`sender`).
-3. **`GET /api/messages/search`** (punto extra): búsqueda de mensajes por
+3. **`GET /api/v1/messages/search`** (punto extra): búsqueda de mensajes por
    contenido — incluye los que tienen una palabra censurada (ver
    [Documentación de la API](#documentación-de-la-api)).
 4. **`WS /ws/messages/{session_id}`** (punto extra): notifica en tiempo real
@@ -164,20 +164,20 @@ Todas las respuestas siguen el mismo sobre:
 ### Autenticación (opcional)
 
 Deshabilitada por defecto. Si configuras la variable de entorno `API_KEY`
-(ver `.env.example`), **todos** los endpoints de `/api/messages*` (no
+(ver `.env.example`), **todos** los endpoints de `/api/v1/messages*` (no
 `/health`) exigen el header `X-API-Key` con ese valor exacto, o responden
 `401` con `error.code = "INVALID_API_KEY"`. El WebSocket usa el mismo
 mecanismo pero vía query param (`?api_key=...`), ya que un cliente WebSocket
 de navegador no puede fijar headers custom en el *handshake*.
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/messages \
+curl -X POST http://127.0.0.1:8000/api/v1/messages \
   -H "Content-Type: application/json" \
   -H "X-API-Key: tu-api-key" \
   -d '{ ... }'
 ```
 
-### `POST /api/messages`
+### `POST /api/v1/messages`
 
 **Request**
 
@@ -248,17 +248,22 @@ en `content` y `metadata.contains_filtered_content` queda en `true`.
 | 429         | `RATE_LIMIT_EXCEEDED`    | Se superó el límite de solicitudes             |
 | 500         | `INTERNAL_SERVER_ERROR`  | Error inesperado del servidor                  |
 
-### `GET /api/messages/{session_id}`
+### `GET /api/v1/messages/{session_id}`
 
 | Parámetro | Tipo   | Default | Notas                          |
 |-----------|--------|---------|----------------------------------|
 | limit     | int    | 20      | 1-100                            |
 | offset    | int    | 0       | ≥ 0                               |
 | sender    | string | (todos) | `"user"` o `"system"`            |
+| order     | string | `"desc"` | `"desc"`: el último mensaje enviado primero. `"asc"`: el más antiguo primero. |
+
+El orden se aplica sobre `timestamp` (cuándo se envió el mensaje), no sobre
+`message_id`: este último es un string arbitrario que entrega quien llama, sin
+ninguna garantía de orden, así que no sirve para "el último enviado primero".
 
 Si la sesión no existe, devuelve `200` con una lista vacía.
 
-### `GET /api/messages/search` (punto extra)
+### `GET /api/v1/messages/search` (punto extra)
 
 Busca mensajes cuyo texto contenga lo dado (`q`), sin distinguir
 mayúsculas/minúsculas. Acepta `limit`/`offset`.
@@ -272,7 +277,7 @@ podría encontrarse, porque ya no existe ahí. La respuesta sigue devolviendo
 ### `WS /ws/messages/{session_id}` (punto extra)
 
 Notifica en tiempo real los mensajes nuevos de una sesión. Cada
-`POST /api/messages` exitoso con ese `session_id` se reenvía como un frame
+`POST /api/v1/messages` exitoso con ese `session_id` se reenvía como un frame
 JSON con el mismo cuerpo que devolvería la API REST (`content` censurado,
 `original_content` disponible) — sin el sobre `{"status", "data"}`, porque el
 WebSocket ya es en sí mismo el canal de eventos.
