@@ -19,7 +19,7 @@ router = APIRouter(tags=["websocket"])
 _POLICY_VIOLATION_CLOSE_CODE = 4401  # rango 4000-4999: código de cierre definido por la app
 
 
-@router.websocket("/ws/v1/messages/{session_id}")
+@router.websocket("/ws/messages/{session_id}")
 async def watch_session_messages(websocket: WebSocket, session_id: str, api_key: str | None = None) -> None:
     if not is_valid_api_key(api_key, websocket.app.state.api_key):
         await websocket.close(code=_POLICY_VIOLATION_CLOSE_CODE, reason="API key inválida o faltante")
