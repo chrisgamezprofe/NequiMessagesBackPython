@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from app.core.dependencies import get_message_service
-from app.schemas.message import MessageCreate, SenderType
+from app.schemas.message import MessageCreate, OrderDirection, SenderType
 from app.services.message_service import MessageService
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"])
@@ -53,7 +53,16 @@ def get_messages_by_session(
     limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de resultados"),
     offset: int = Query(0, ge=0, description="Cantidad de resultados a omitir"),
     sender: SenderType | None = Query(None, description="Filtrar por remitente: 'user' o 'system'"),
+    order: OrderDirection = Query(
+        OrderDirection.DESC,
+        description=(
+            "Orden por fecha de envío (`timestamp`): 'desc' (default) muestra el último "
+            "mensaje enviado primero; 'asc' muestra el más antiguo primero."
+        ),
+    ),
     service: MessageService = Depends(get_message_service),
 ) -> JSONResponse:
-    result = service.get_session_messages(session_id, limit, offset, sender.value if sender else None)
+    result = service.get_session_messages(
+        session_id, limit, offset, sender.value if sender else None, order.value
+    )
     return _success(result)

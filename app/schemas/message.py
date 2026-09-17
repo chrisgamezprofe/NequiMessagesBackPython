@@ -10,8 +10,18 @@ class SenderType(str, Enum):
     SYSTEM = "system"
 
 
+class OrderDirection(str, Enum):
+    """Orden para `GET /api/messages/{session_id}`.
+
+    Se ordena por `timestamp` (cuándo se envió el mensaje).
+    """
+
+    ASC = "asc"
+    DESC = "desc"
+
+
 class MessageCreate(BaseModel):
-    """Quí ponemos lo que acepta el body vía `POST /api/messages`."""
+    """Carga aceptada por `POST /api/messages`."""
 
     message_id: str = Field(..., min_length=1, max_length=100)
     session_id: str = Field(..., min_length=1, max_length=100)

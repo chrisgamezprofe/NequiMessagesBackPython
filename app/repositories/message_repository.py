@@ -29,6 +29,7 @@ class MessageRepository:
         limit: int,
         offset: int,
         sender: str | None = None,
+        order: str = "desc",
     ) -> tuple[list[MessageModel], int]:
         stmt = select(MessageModel).where(MessageModel.session_id == session_id)
         if sender:
@@ -36,12 +37,15 @@ class MessageRepository:
 
         total = self._db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
 
-        stmt = stmt.order_by(MessageModel.timestamp.asc()).limit(limit).offset(offset)
+        # Se ordena por `timestamp` (cuándo se envió) ver `OrderDirection`
+        # en app/schemas/message.py para el porqué.
+        timestamp_order = MessageModel.timestamp.desc() if order == "desc" else MessageModel.timestamp.asc()
+        stmt = stmt.order_by(timestamp_order).limit(limit).offset(offset)
         records = list(self._db.scalars(stmt))
         return records, total
 
     def search(self, query: str, limit: int, offset: int) -> tuple[list[MessageModel], int]:
-        # Se busca sobre `original_content` (texto real, sin censurar), no sobre
+        # Se busca sobre `original_content` (el texto real, sin censurar), no sobre
         # `content` (la versión con asteriscos): si se buscara sobre `content`, una
         # palabra prohibida jamás podría encontrarse, porque ya no existe ahí —fue
         # reemplazada por "*"—. Buscar sobre el original permite, por ejemplo, que

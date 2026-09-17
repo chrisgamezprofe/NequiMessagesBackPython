@@ -1,5 +1,5 @@
-"""Orquesta el flujo de procesamiento de mensajes: validar, filtrar, enriquecer,
-almacenar, y las consultas de recuperación o búsqueda. No conoce HTTP ni SQL."""
+"""Orquesta el pipeline de procesamiento de mensajes: validar -> filtrar -> enriquecer
+-> almacenar, y las consultas de recuperación/búsqueda. No conoce HTTP ni SQL."""
 from datetime import datetime, timezone
 
 from app.core.broadcaster import MessageBroadcaster
@@ -62,8 +62,9 @@ class MessageService:
         limit: int,
         offset: int,
         sender: str | None,
+        order: str = "desc",
     ) -> MessageListData:
-        records, total = self._repository.list_by_session(session_id, limit, offset, sender)
+        records, total = self._repository.list_by_session(session_id, limit, offset, sender, order)
         return MessageListData(
             messages=[self._to_response(r) for r in records],
             pagination=PaginationInfo(limit=limit, offset=offset, total=total),
